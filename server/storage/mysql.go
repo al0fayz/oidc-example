@@ -170,9 +170,136 @@ func (s *mysqlStorage) CleanupExpiredRefreshTokens(ctx context.Context) error {
 	return s.tokenRepo.CleanupExpiredRefreshTokens(ctx)
 }
 
-// Implement other methods using the respective repositories...
-func (m *mysqlStorage) CleanupExpiredAuthorizationCodes() error {
-	// Implement the logic to clean up expired authorization codes from MySQL.
-	// For now, return nil or an appropriate error.
-	return nil
+// Authorization code management
+func (s *mysqlStorage) CreateAuthorizationCode(ctx context.Context, code *models.AuthorizationCode) error {
+	return s.authCodeRepo.Create(ctx, code)
+}
+
+func (s *mysqlStorage) GetAuthorizationCode(ctx context.Context, code string) (*models.AuthorizationCode, error) {
+	return s.authCodeRepo.FindByCode(ctx, code)
+}
+
+func (s *mysqlStorage) InvalidateAuthorizationCode(ctx context.Context, code string) error {
+	return s.authCodeRepo.Invalidate(ctx, code)
+}
+
+func (s *mysqlStorage) DeleteAuthorizationCode(ctx context.Context, code string) error {
+	return s.authCodeRepo.Delete(ctx, code)
+}
+
+func (s *mysqlStorage) CleanupExpiredAuthorizationCodes(ctx context.Context) error {
+	return s.authCodeRepo.CleanupExpired(ctx)
+}
+
+// Session management
+func (s *mysqlStorage) CreateSession(ctx context.Context, session *models.Session) error {
+	return s.sessionRepo.Create(ctx, session)
+}
+
+func (s *mysqlStorage) GetSession(ctx context.Context, token string) (*models.Session, error) {
+	return s.sessionRepo.FindByToken(ctx, token)
+}
+
+func (s *mysqlStorage) GetSessionsForUser(ctx context.Context, userID string, limit, offset int) ([]*models.Session, error) {
+	return s.sessionRepo.FindByUserID(ctx, userID, limit, offset)
+}
+
+func (s *mysqlStorage) UpdateSession(ctx context.Context, session *models.Session) error {
+	return s.sessionRepo.Update(ctx, session)
+}
+
+func (s *mysqlStorage) DeleteSession(ctx context.Context, token string) error {
+	return s.sessionRepo.Delete(ctx, token)
+}
+
+func (s *mysqlStorage) DeleteSessionsForUser(ctx context.Context, userID string) error {
+	return s.sessionRepo.DeleteByUserID(ctx, userID)
+}
+
+func (s *mysqlStorage) CleanupExpiredSessions(ctx context.Context) error {
+	return s.sessionRepo.CleanupExpired(ctx)
+}
+
+// JWK management
+func (s *mysqlStorage) CreateJWK(ctx context.Context, jwk *models.JWK) error {
+	return s.jwkRepo.Create(ctx, jwk)
+}
+
+func (s *mysqlStorage) GetJWK(ctx context.Context, kid string) (*models.JWK, error) {
+	return s.jwkRepo.FindByKID(ctx, kid)
+}
+
+func (s *mysqlStorage) GetActiveJWKs(ctx context.Context) ([]*models.JWK, error) {
+	return s.jwkRepo.FindActive(ctx)
+}
+
+func (s *mysqlStorage) RotateJWK(ctx context.Context, kid string) error {
+	return s.jwkRepo.Rotate(ctx, kid)
+}
+
+func (s *mysqlStorage) DeleteJWK(ctx context.Context, kid string) error {
+	return s.jwkRepo.Delete(ctx, kid)
+}
+
+// consent management
+func (s *mysqlStorage) CreateConsentSession(ctx context.Context, session *models.ConsentSession) error {
+	return s.consentSessionRepo.Create(ctx, session)
+}
+
+func (s *mysqlStorage) GetConsentSession(ctx context.Context, id string) (*models.ConsentSession, error) {
+	return s.consentSessionRepo.FindByID(ctx, id)
+}
+
+func (s *mysqlStorage) GetConsentSessionsForUser(ctx context.Context, userID string, limit, offset int) ([]*models.ConsentSession, error) {
+	return s.consentSessionRepo.FindByUserID(ctx, userID, limit, offset)
+}
+
+func (s *mysqlStorage) UpdateConsentSession(ctx context.Context, session *models.ConsentSession) error {
+	return s.consentSessionRepo.Update(ctx, session)
+}
+
+func (s *mysqlStorage) DeleteConsentSession(ctx context.Context, id string) error {
+	return s.consentSessionRepo.Delete(ctx, id)
+}
+
+func (s *mysqlStorage) CleanupExpiredConsentSessions(ctx context.Context) error {
+	return s.consentSessionRepo.CleanupExpired(ctx)
+}
+
+// device code management
+func (s *mysqlStorage) CreateDeviceCode(ctx context.Context, deviceCode *models.DeviceCode) error {
+	return s.deviceCodeRepo.Create(ctx, deviceCode)
+}
+
+func (s *mysqlStorage) GetDeviceCodeByDeviceCode(ctx context.Context, deviceCode string) (*models.DeviceCode, error) {
+	return s.deviceCodeRepo.FindByDeviceCode(ctx, deviceCode)
+}
+
+func (s *mysqlStorage) GetDeviceCodeByUserCode(ctx context.Context, userCode string) (*models.DeviceCode, error) {
+	return s.deviceCodeRepo.FindByUserCode(ctx, userCode)
+}
+
+func (s *mysqlStorage) UpdateDeviceCode(ctx context.Context, deviceCode *models.DeviceCode) error {
+	return s.deviceCodeRepo.Update(ctx, deviceCode)
+}
+
+func (s *mysqlStorage) DeleteDeviceCode(ctx context.Context, deviceCode string) error {
+	return s.deviceCodeRepo.Delete(ctx, deviceCode)
+}
+
+func (s *mysqlStorage) CleanupExpiredDeviceCodes(ctx context.Context) error {
+	return s.deviceCodeRepo.CleanupExpired(ctx)
+}
+
+// audit logging management
+func (s *mysqlStorage) CreateAuditLog(ctx context.Context, log *models.AuditLog) error {
+	return s.auditLogRepo.Create(ctx, log)
+}
+
+func (s *mysqlStorage) GetAuditLogs(ctx context.Context, filter repository.AuditLogFilter, limit, offset int) ([]*models.AuditLog, error) {
+	return s.auditLogRepo.Find(ctx, filter, limit, offset)
+}
+
+func (s *mysqlStorage) CountAuditLogs(ctx context.Context, filter repository.AuditLogFilter) (int64, error) {
+	return s.auditLogRepo.Count(ctx, filter)
 }
