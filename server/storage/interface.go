@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"oidc-example/server/models"
-	"time"
+	"oidc-example/server/repository"
 )
 
 type Storage interface {
@@ -82,21 +82,11 @@ type Storage interface {
 
 	// Audit logging
 	CreateAuditLog(ctx context.Context, log *models.AuditLog) error
-	GetAuditLogs(ctx context.Context, filter AuditLogFilter, limit, offset int) ([]*models.AuditLog, error)
-	CountAuditLogs(ctx context.Context, filter AuditLogFilter) (int64, error)
+	GetAuditLogs(ctx context.Context, filter repository.AuditLogFilter, limit, offset int) ([]*models.AuditLog, error)
+	CountAuditLogs(ctx context.Context, filter repository.AuditLogFilter) (int64, error)
 
 	// Maintenance operations
 	Ping(ctx context.Context) error
 	Close() error
 	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
-}
-
-type AuditLogFilter struct {
-	EventType  string
-	ClientID   string
-	UserID     string
-	StartTime  time.Time
-	EndTime    time.Time
-	IPAddress  string
-	WithErrors bool
 }

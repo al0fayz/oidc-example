@@ -59,6 +59,37 @@ func newMySQLStorage(connectionString string) (*mysqlStorage, error) {
 	}, nil
 }
 
+func (s *mysqlStorage) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
+func (s *mysqlStorage) Close() error {
+	return s.db.Close()
+}
+
+func (s *mysqlStorage) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	txCtx := context.WithValue(ctx, "tx", tx)
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	if err := fn(txCtx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
 // User management
 func (s *mysqlStorage) CreateUser(ctx context.Context, user *models.User) error {
 	return s.userRepo.Create(ctx, user)

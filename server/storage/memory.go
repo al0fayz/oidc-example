@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"oidc-example/server/models"
+	"oidc-example/server/repository"
 	"oidc-example/server/utils"
 	"sync"
 	"time"
@@ -775,7 +776,7 @@ func (s *MemoryStorage) CreateAuditLog(ctx context.Context, log *models.AuditLog
 	return nil
 }
 
-func (s *MemoryStorage) GetAuditLogs(ctx context.Context, filter AuditLogFilter, limit, offset int) ([]*models.AuditLog, error) {
+func (s *MemoryStorage) GetAuditLogs(ctx context.Context, filter repository.AuditLogFilter, limit, offset int) ([]*models.AuditLog, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -820,7 +821,7 @@ func (s *MemoryStorage) GetAuditLogs(ctx context.Context, filter AuditLogFilter,
 	return logs[start:end], nil
 }
 
-func (s *MemoryStorage) CountAuditLogs(ctx context.Context, filter AuditLogFilter) (int64, error) {
+func (s *MemoryStorage) CountAuditLogs(ctx context.Context, filter repository.AuditLogFilter) (int64, error) {
 	logs, err := s.GetAuditLogs(ctx, filter, 0, 0)
 	if err != nil {
 		return 0, err

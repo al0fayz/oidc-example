@@ -9,19 +9,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	store       storage.Storage
-	oidcHandler OIDCHandler
+	store storage.Storage
 }
 
-func NewAuthHandler(store storage.Storage, oidcHandler OIDCHandler) *AuthHandler {
-	return &AuthHandler{
-		store:       store,
-		oidcHandler: oidcHandler,
-	}
+func NewAuthHandler(store storage.Storage) *AuthHandler {
+	return &AuthHandler{store: store}
 }
 
 // Register handles user registration
@@ -45,6 +42,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Check if username already exists
+	_, err = h.store.GetUserByUsername(c.Request.Context(), req.Username)
+	if err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Username already taken"})
+		return
+	}
+
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -54,7 +58,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Create user
 	user := &models.User{
-		ID:           generateID(),
+		ID:           uuid.New().String(),
 		Username:     req.Username,
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
@@ -94,6 +98,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Get user by email
 	user, err := h.store.GetUserByEmail(c.Request.Context(), req.Email)
 	if err != nil {
+		// Don't reveal whether user exists or not
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
@@ -111,7 +116,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Create session
-	sessionToken := generateID()
+	sessionToken := uuid.New().String()
 	session := &models.Session{
 		Token:     sessionToken,
 		UserID:    user.ID,
@@ -125,17 +130,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Update user last login
-	user.LastLogin = &time.Time{}
-	*user.LastLogin = time.Now()
+	now := time.Now()
+	user.LastLogin = &now
 	user.LoginCount++
+	user.LastIP = c.ClientIP()
 
 	if err := h.store.UpdateUser(c.Request.Context(), user); err != nil {
 		// Log error but don't fail the login
+		fmt.Printf("Failed to update user last login: %v\n", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login successful",
 		"token":   sessionToken,
+		"expires": session.ExpiresAt,
 		"user": gin.H{
 			"id":       user.ID,
 			"username": user.Username,
@@ -145,13 +153,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
-// Helper function to generate unique ID
-func generateID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
-
+// Logout handles user logout
 func (h *AuthHandler) Logout(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	_, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
 		return
@@ -174,11 +178,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	if err := h.store.DeleteSession(c.Request.Context(), token); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
 		return
-	}
-
-	// Delete all user sessions (optional)
-	if err := h.store.DeleteSessionsForUser(c.Request.Context(), userID.(string)); err != nil {
-		// Log error but don't fail the logout
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -211,26 +210,23 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Get client
-	client, err := h.store.GetClientByID(c.Request.Context(), refreshToken.ClientID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get client"})
-		return
+	// Get client (if needed for token generation)
+	var client *models.Client
+	if refreshToken.ClientID != "" {
+		client, err = h.store.GetClientByID(c.Request.Context(), refreshToken.ClientID)
+		fmt.Println(client)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get client"})
+			return
+		}
 	}
 
-	// Generate new access token
-	accessToken, err := h.oidcHandler.generateAccessToken(user, client)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
-		return
-	}
-
-	// Create new session
-	sessionToken := generateID()
+	// Create new session token
+	sessionToken := uuid.New().String()
 	session := &models.Session{
 		Token:     sessionToken,
 		UserID:    user.ID,
-		ClientID:  client.ID,
+		ClientID:  refreshToken.ClientID,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		CreatedAt: time.Now(),
 	}
@@ -240,10 +236,19 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// For OIDC flows, you might want to generate proper access tokens here
+	// For now, we'll just return a new session token
+
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessToken,
+		"access_token":  sessionToken,
 		"token_type":    "Bearer",
 		"expires_in":    3600,
 		"refresh_token": req.RefreshToken,
+		"scope":         refreshToken.Scope,
 	})
+}
+
+// Helper function to generate unique ID (fallback)
+func generateID() string {
+	return uuid.New().String()
 }
