@@ -13,9 +13,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	//load .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Can't load .env file!")
+	}
 	// Initialize storage
 	storageConfig := getStorageConfig()
 	store, err := storage.NewStorage(storageConfig)
@@ -140,7 +146,7 @@ func startServer(router *gin.Engine) {
 	// Get port from environment or use default
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "3011"
 	}
 
 	server := &http.Server{

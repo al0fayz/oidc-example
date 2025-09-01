@@ -1,8 +1,14 @@
 -- MySQL compatible schema for OIDC server
+-- Enable strict mode for better data integrity
+SET sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+
+-- Create database
+CREATE DATABASE IF NOT EXISTS oidc CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE oidc;
 
 -- Users table
 CREATE TABLE users (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id CHAR(36) PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     email_verified BOOLEAN DEFAULT FALSE,
@@ -16,7 +22,7 @@ CREATE TABLE users (
     picture TEXT,
     website TEXT,
     gender VARCHAR(50),
-    birthdate DATE,
+    birthdate DATE NULL,
     zoneinfo VARCHAR(100),
     locale VARCHAR(10),
     phone_number VARCHAR(50),
@@ -34,8 +40,9 @@ CREATE TABLE users (
     metadata JSON,
     INDEX idx_users_email (email),
     INDEX idx_users_username (username),
-    INDEX idx_users_created_at (created_at)
-);
+    INDEX idx_users_created_at (created_at),
+    INDEX idx_users_blocked (blocked)
+) ENGINE=InnoDB;
 
 -- Clients table
 CREATE TABLE clients (
@@ -78,7 +85,7 @@ CREATE TABLE clients (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_clients_created_at (created_at)
-);
+) ENGINE=InnoDB;
 
 -- Authorization codes table
 CREATE TABLE authorization_codes (
@@ -96,9 +103,10 @@ CREATE TABLE authorization_codes (
     INDEX idx_auth_codes_client_id (client_id),
     INDEX idx_auth_codes_user_id (user_id),
     INDEX idx_auth_codes_expires_at (expires_at),
+    INDEX idx_auth_codes_used (used),
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- Refresh tokens table
 CREATE TABLE refresh_tokens (
@@ -116,7 +124,7 @@ CREATE TABLE refresh_tokens (
     INDEX idx_refresh_tokens_revoked (revoked),
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- Access tokens table
 CREATE TABLE access_tokens (
@@ -131,9 +139,10 @@ CREATE TABLE access_tokens (
     INDEX idx_access_tokens_client_id (client_id),
     INDEX idx_access_tokens_user_id (user_id),
     INDEX idx_access_tokens_expires_at (expires_at),
+    INDEX idx_access_tokens_revoked (revoked),
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- Sessions table
 CREATE TABLE sessions (
@@ -145,10 +154,11 @@ CREATE TABLE sessions (
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_sessions_user_id (user_id),
+    INDEX idx_sessions_client_id (client_id),
     INDEX idx_sessions_expires_at (expires_at),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- JWKS table
 CREATE TABLE jwks (
@@ -168,12 +178,14 @@ CREATE TABLE jwks (
     expires_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     rotated_at TIMESTAMP NULL,
-    INDEX idx_jwks_expires_at (expires_at)
-);
+    INDEX idx_jwks_expires_at (expires_at),
+    INDEX idx_jwks_use (use),
+    INDEX idx_jwks_alg (alg)
+) ENGINE=InnoDB;
 
 -- Consent sessions table
 CREATE TABLE consent_sessions (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id CHAR(36) PRIMARY KEY,
     client_id VARCHAR(255) NOT NULL,
     user_id CHAR(36) NOT NULL,
     scope TEXT NOT NULL,
@@ -189,9 +201,10 @@ CREATE TABLE consent_sessions (
     INDEX idx_consent_sessions_client_id (client_id),
     INDEX idx_consent_sessions_user_id (user_id),
     INDEX idx_consent_sessions_expires_at (expires_at),
+    INDEX idx_consent_sessions_rejected (rejected),
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- Device codes table
 CREATE TABLE device_codes (
@@ -207,13 +220,15 @@ CREATE TABLE device_codes (
     INDEX idx_device_codes_user_code (user_code),
     INDEX idx_device_codes_client_id (client_id),
     INDEX idx_device_codes_expires_at (expires_at),
+    INDEX idx_device_codes_approved (approved),
+    INDEX idx_device_codes_denied (denied),
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- Audit logs table
 CREATE TABLE audit_logs (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id CHAR(36) PRIMARY KEY,
     event_type VARCHAR(100) NOT NULL,
     event_subtype VARCHAR(100),
     client_id VARCHAR(255),
@@ -227,18 +242,143 @@ CREATE TABLE audit_logs (
     INDEX idx_audit_logs_client_id (client_id),
     INDEX idx_audit_logs_user_id (user_id),
     INDEX idx_audit_logs_created_at (created_at),
+    INDEX idx_audit_logs_ip_address (ip_address),
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-);
+) ENGINE=InnoDB;
 
 -- Insert default test client
-INSERT INTO clients (id, secret, name, redirect_uris, grant_types, response_types, scope) VALUES
-(
+INSERT INTO clients (
+    id, secret, name, description, 
+    redirect_uris, grant_types, response_types, scope,
+    token_endpoint_auth_method
+) VALUES (
     'test-client',
     'test-secret',
     'Test Client',
-    '["http://localhost:3000/callback", "http://localhost:3000"]',
+    'Test client for development',
+    '["http://localhost:3000/callback", "http://localhost:3000/auth/callback"]',
     '["authorization_code", "refresh_token", "client_credentials"]',
     '["code"]',
-    'openid profile email offline_access'
+    'openid profile email offline_access',
+    'client_secret_basic'
+);
+
+-- Insert test user (password: "password123")
+INSERT INTO users (
+    id, username, email, email_verified, password_hash, name,
+    created_at, updated_at
+) VALUES (
+    '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    'testuser',
+    'test@example.com',
+    TRUE,
+    '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- password123
+    'Test User',
+    NOW(),
+    NOW()
+);
+
+-- Insert test RSA key for JWKS
+INSERT INTO jwks (
+    kid, kty, use, alg, n, e, created_at
+) VALUES (
+    '1',
+    'RSA',
+    'sig',
+    'RS256',
+    'qFZ9...long_rsa_modulus...', -- This should be a real RSA modulus
+    'AQAB',
+    NOW()
+);
+
+-- Create procedures for cleanup
+DELIMITER //
+
+CREATE PROCEDURE CleanupExpiredData()
+BEGIN
+    -- Cleanup expired authorization codes
+    DELETE FROM authorization_codes WHERE expires_at <= NOW() OR used = TRUE;
+    
+    -- Cleanup expired access tokens
+    DELETE FROM access_tokens WHERE expires_at <= NOW() OR revoked = TRUE;
+    
+    -- Cleanup expired refresh tokens
+    DELETE FROM refresh_tokens WHERE expires_at <= NOW() OR revoked = TRUE;
+    
+    -- Cleanup expired sessions
+    DELETE FROM sessions WHERE expires_at <= NOW();
+    
+    -- Cleanup expired device codes
+    DELETE FROM device_codes WHERE expires_at <= NOW() OR approved = TRUE OR denied = TRUE;
+    
+    -- Cleanup expired consent sessions
+    DELETE FROM consent_sessions WHERE expires_at <= NOW() OR rejected = TRUE;
+    
+    -- Cleanup expired JWKS (optional)
+    DELETE FROM jwks WHERE expires_at IS NOT NULL AND expires_at <= NOW();
+END//
+
+DELIMITER ;
+
+-- Create events for automatic cleanup
+SET GLOBAL event_scheduler = ON;
+
+CREATE EVENT IF NOT EXISTS CleanupExpiredDataEvent
+ON SCHEDULE EVERY 1 HOUR
+DO
+    CALL CleanupExpiredData();
+
+-- Create views for easier querying
+CREATE VIEW active_sessions AS
+SELECT * FROM sessions WHERE expires_at > NOW();
+
+CREATE VIEW valid_tokens AS
+SELECT 
+    'access' as token_type,
+    token,
+    client_id,
+    user_id,
+    scope,
+    expires_at
+FROM access_tokens 
+WHERE expires_at > NOW() AND revoked = FALSE
+UNION ALL
+SELECT 
+    'refresh' as token_type,
+    token,
+    client_id,
+    user_id,
+    scope,
+    expires_at
+FROM refresh_tokens 
+WHERE expires_at > NOW() AND revoked = FALSE;
+
+CREATE VIEW user_clients AS
+SELECT 
+    u.id as user_id,
+    u.username,
+    u.email,
+    c.id as client_id,
+    c.name as client_name,
+    cs.granted_scope,
+    cs.created_at as consent_given_at
+FROM users u
+JOIN consent_sessions cs ON u.id = cs.user_id
+JOIN clients c ON cs.client_id = c.id
+WHERE cs.rejected = FALSE AND cs.expires_at > NOW();
+
+-- Insert sample audit log
+INSERT INTO audit_logs (
+    id, event_type, event_subtype, client_id, user_id,
+    ip_address, user_agent, created_at
+) VALUES (
+    UUID(),
+    'user_login',
+    'success',
+    'test-client',
+    '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    '127.0.0.1',
+    'Mozilla/5.0 (Test Browser)',
+    NOW()
 );

@@ -9,6 +9,8 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"oidc-example/server/repository"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type mysqlStorage struct {
