@@ -6,7 +6,7 @@ import "time"
 type JWK struct {
 	KID        string      `db:"kid" json:"kid"`
 	Kty        string      `db:"kty" json:"kty"`
-	Use        string      `db:"use" json:"use"`
+	Use        string      `db:"key_use" json:"key_use"`
 	Alg        string      `db:"alg" json:"alg"`
 	N          string      `db:"n" json:"n"`
 	E          string      `db:"e" json:"e"`

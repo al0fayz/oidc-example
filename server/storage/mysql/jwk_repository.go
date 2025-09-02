@@ -28,7 +28,7 @@ func (r *JWKRepository) Create(ctx context.Context, jwk *models.JWK) error {
 	}
 
 	query := `
-		INSERT INTO jwks (kid, kty, use, alg, n, e, d, p, q, dp, dq, qi, operations, expires_at, created_at, rotated_at)
+		INSERT INTO jwks (kid, kty, key_use, alg, n, e, d, p, q, dp, dq, qi, operations, expires_at, created_at, rotated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
 	`
 

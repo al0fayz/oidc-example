@@ -1,6 +1,10 @@
 package utils
 
-import "encoding/json"
+import (
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
+)
 
 // Helper function to handle JSON marshaling for MySQL
 func MarshalJSON(data interface{}) (string, error) {
@@ -24,4 +28,12 @@ func MarshalStringArray(arr []string) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+func GenerateRSAKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, &privateKey.PublicKey, nil
 }

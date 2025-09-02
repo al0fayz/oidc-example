@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
@@ -12,6 +11,7 @@ import (
 	"net/url"
 	"oidc-example/server/models"
 	"oidc-example/server/storage"
+	"oidc-example/server/utils"
 	"strings"
 	"time"
 
@@ -27,7 +27,7 @@ type OIDCHandler struct {
 }
 
 func NewOIDCHandler(store storage.Storage) *OIDCHandler {
-	privateKey, publicKey, err := generateRSAKeyPair()
+	privateKey, publicKey, err := utils.GenerateRSAKeyPair()
 	if err != nil {
 		log.Fatal("Failed to generate RSA key pair:", err)
 	}
@@ -286,12 +286,12 @@ func (h *OIDCHandler) JWKS(c *gin.Context) {
 	jwks := map[string]interface{}{
 		"keys": []map[string]interface{}{
 			{
-				"kty": "RSA",
-				"use": "sig",
-				"kid": "1",
-				"alg": "RS256",
-				"n":   nBase64,
-				"e":   eBase64,
+				"kty":     "RSA",
+				"key_use": "sig",
+				"kid":     "1",
+				"alg":     "RS256",
+				"n":       nBase64,
+				"e":       eBase64,
 			},
 		},
 	}
@@ -384,14 +384,6 @@ func (h *OIDCHandler) validateToken(tokenString string) (jwt.MapClaims, error) {
 	}
 
 	return claims, nil
-}
-
-func generateRSAKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
-	}
-	return privateKey, &privateKey.PublicKey, nil
 }
 
 func getBaseURL(r *http.Request) string {

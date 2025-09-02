@@ -39,9 +39,10 @@ func main() {
 	authHandler := handlers.NewAuthHandler(store)
 	oidcHandler := handlers.NewOIDCHandler(store)
 	userHandler := handlers.NewUserHandler(store)
-
+	jwkHandler := handlers.NewJWKHandler(store)
+	auditLogHandler := handlers.NewAuditLogHandler(store)
 	// Create router with middleware
-	router := setupRouter(authHandler, oidcHandler, userHandler, store)
+	router := setupRouter(authHandler, oidcHandler, userHandler, jwkHandler, auditLogHandler, store)
 
 	// Start server
 	startServer(router)
@@ -69,7 +70,12 @@ func getStorageConfig() storage.Config {
 	}
 }
 
-func setupRouter(authHandler *handlers.AuthHandler, oidcHandler *handlers.OIDCHandler, userHandler *handlers.UserHandler, store storage.Storage) *gin.Engine {
+func setupRouter(authHandler *handlers.AuthHandler,
+	oidcHandler *handlers.OIDCHandler,
+	userHandler *handlers.UserHandler,
+	jwkHandler *handlers.JWKHandler,
+	auditLogHandler *handlers.AuditLogHandler,
+	store storage.Storage) *gin.Engine {
 	// Create Gin router
 	router := gin.New()
 
@@ -92,7 +98,7 @@ func setupRouter(authHandler *handlers.AuthHandler, oidcHandler *handlers.OIDCHa
 		public.GET("/oauth2/authorize", oidcHandler.Authorize)
 		public.POST("/oauth2/token", oidcHandler.Token)
 		public.GET("/oauth2/userinfo", oidcHandler.UserInfo)
-		public.GET("/oauth2/jwks", oidcHandler.JWKS)
+		public.GET("/oauth2/jwks", jwkHandler.GetJWKS)
 	}
 
 	// Protected routes (require authentication)
@@ -103,6 +109,17 @@ func setupRouter(authHandler *handlers.AuthHandler, oidcHandler *handlers.OIDCHa
 		protected.PUT("/users/me", userHandler.UpdateUser)
 		protected.GET("/clients", userHandler.GetClients)
 		protected.POST("/logout", authHandler.Logout)
+
+		protected.GET("/jwks", jwkHandler.ListJWKs)
+		protected.GET("/jwks/:kid", jwkHandler.GetJWK)
+		protected.POST("/jwks", jwkHandler.CreateJWK)
+		protected.POST("/jwks/:kid/rotate", jwkHandler.RotateJWK)
+		protected.DELETE("/jwks/:kid", jwkHandler.DeleteJWK)
+
+		protected.GET("/audit-logs", auditLogHandler.GetAuditLogs)
+		protected.GET("/audit-logs/:id", auditLogHandler.GetAuditLog)
+		protected.GET("/audit-logs/stats", auditLogHandler.GetAuditStats)
+		protected.POST("/audit-logs", auditLogHandler.CreateAuditLog)
 	}
 
 	// Admin routes (optional - for management)
@@ -110,6 +127,8 @@ func setupRouter(authHandler *handlers.AuthHandler, oidcHandler *handlers.OIDCHa
 	admin.Use(middleware.AuthMiddleware(store))
 	admin.Use(middleware.AdminMiddleware())
 	{
+		admin.GET("/audit-logs", auditLogHandler.GetAuditLogs)
+		admin.GET("/audit-logs/stats", auditLogHandler.GetAuditStats)
 		// Add admin endpoints here
 	}
 

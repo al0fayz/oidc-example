@@ -164,7 +164,7 @@ CREATE TABLE sessions (
 CREATE TABLE jwks (
     kid VARCHAR(255) PRIMARY KEY,
     kty VARCHAR(50) NOT NULL,
-    use VARCHAR(50) NOT NULL DEFAULT 'sig',
+    key_use VARCHAR(50) NOT NULL DEFAULT 'sig',
     alg VARCHAR(50) NOT NULL DEFAULT 'RS256',
     n TEXT NOT NULL,
     e TEXT NOT NULL,
@@ -179,7 +179,7 @@ CREATE TABLE jwks (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     rotated_at TIMESTAMP NULL,
     INDEX idx_jwks_expires_at (expires_at),
-    INDEX idx_jwks_use (use),
+    INDEX idx_jwks_key_use (key_use),
     INDEX idx_jwks_alg (alg)
 ) ENGINE=InnoDB;
 
@@ -281,7 +281,7 @@ INSERT INTO users (
 
 -- Insert test RSA key for JWKS
 INSERT INTO jwks (
-    kid, kty, use, alg, n, e, created_at
+    kid, kty, key_use, alg, n, e, created_at
 ) VALUES (
     '1',
     'RSA',
