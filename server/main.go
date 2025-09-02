@@ -41,8 +41,10 @@ func main() {
 	userHandler := handlers.NewUserHandler(store)
 	jwkHandler := handlers.NewJWKHandler(store)
 	auditLogHandler := handlers.NewAuditLogHandler(store)
+	clientHandler := handlers.NewClientHandler(store)
+
 	// Create router with middleware
-	router := setupRouter(authHandler, oidcHandler, userHandler, jwkHandler, auditLogHandler, store)
+	router := setupRouter(authHandler, oidcHandler, userHandler, jwkHandler, auditLogHandler, clientHandler, store)
 
 	// Start server
 	startServer(router)
@@ -75,6 +77,7 @@ func setupRouter(authHandler *handlers.AuthHandler,
 	userHandler *handlers.UserHandler,
 	jwkHandler *handlers.JWKHandler,
 	auditLogHandler *handlers.AuditLogHandler,
+	clientHandler *handlers.ClientHandler,
 	store storage.Storage) *gin.Engine {
 	// Create Gin router
 	router := gin.New()
@@ -99,6 +102,7 @@ func setupRouter(authHandler *handlers.AuthHandler,
 		public.POST("/oauth2/token", oidcHandler.Token)
 		public.GET("/oauth2/userinfo", oidcHandler.UserInfo)
 		public.GET("/oauth2/jwks", jwkHandler.GetJWKS)
+		public.POST("/clients", clientHandler.CreateClient) // Client registration
 	}
 
 	// Protected routes (require authentication)
@@ -107,7 +111,7 @@ func setupRouter(authHandler *handlers.AuthHandler,
 	{
 		protected.GET("/users/me", userHandler.GetCurrentUser)
 		protected.PUT("/users/me", userHandler.UpdateUser)
-		protected.GET("/clients", userHandler.GetClients)
+		protected.GET("/users/clients", userHandler.GetClients)
 		protected.POST("/logout", authHandler.Logout)
 
 		protected.GET("/jwks", jwkHandler.ListJWKs)
@@ -120,6 +124,14 @@ func setupRouter(authHandler *handlers.AuthHandler,
 		protected.GET("/audit-logs/:id", auditLogHandler.GetAuditLog)
 		protected.GET("/audit-logs/stats", auditLogHandler.GetAuditStats)
 		protected.POST("/audit-logs", auditLogHandler.CreateAuditLog)
+
+		// Client management
+		protected.GET("/clients", clientHandler.ListClients)
+		protected.GET("/clients/:id", clientHandler.GetClient)
+		protected.PUT("/clients/:id", clientHandler.UpdateClient)
+		protected.DELETE("/clients/:id", clientHandler.DeleteClient)
+		protected.POST("/clients/:id/rotate-secret", clientHandler.RotateClientSecret)
+
 	}
 
 	// Admin routes (optional - for management)
